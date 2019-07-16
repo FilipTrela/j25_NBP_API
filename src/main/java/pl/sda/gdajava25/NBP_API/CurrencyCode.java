@@ -1,4 +1,4 @@
-package pl.sda.gdajava25;
+package pl.sda.gdajava25.NBP_API;
 
 public enum CurrencyCode {
     USD,
