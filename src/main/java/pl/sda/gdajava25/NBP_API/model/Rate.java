@@ -7,6 +7,8 @@ import lombok.ToString;
 
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.Objects;
+
 @ToString
 @NoArgsConstructor
 @Getter
@@ -29,4 +31,16 @@ public class Rate {
     @XmlElement(name="Mid")
     private Double Mid;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Rate)) return false;
+        Rate rate = (Rate) o;
+        return Objects.equals(getNo(), rate.getNo());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getNo());
+    }
 }

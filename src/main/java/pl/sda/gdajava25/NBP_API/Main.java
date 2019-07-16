@@ -1,5 +1,6 @@
 package pl.sda.gdajava25.NBP_API;
 
+import pl.sda.gdajava25.NBP_API.exceptions.WrongDataFormatException;
 import pl.sda.gdajava25.NBP_API.model.ExchangeRatesSeries;
 import pl.sda.gdajava25.NBP_API.model.Rate;
 
@@ -10,7 +11,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -57,23 +60,60 @@ public class Main {
 
         DataFormat dataFormat = loadDataFormatFromUser(scanner);
 
-        String requestURL = generateHTTP(currencyCodeEnum, pD, kD, table, dataFormat);
+        String requestURL = null;
+        ExchangeRatesSeries exchangeRatesSeries = null;
 
-        ExchangeRatesSeries exchangeRatesSeries = unmarshalExchangeRatesSeries(requestURL);
+        Period period = Period.between(pD, kD);
+        if (period.getDays() > 93) {
+            int temporary = period.getDays();
+            int iloscPetli = temporary / 93;
+            int ostatnieDni = temporary % 93;
+            LocalDate newPD = pD;
+            LocalDate newKD = newPD.plusDays(93);
 
-        printOperation(exchangeRatesSeries, scanner);
+            for (int i = 0; i < iloscPetli; i++) {
+                try {
+                    requestURL = generateHTTP(currencyCodeEnum, newPD, newKD, table, dataFormat);
+                    exchangeRatesSeries = unmarshalExchangeRatesSeries(requestURL);
+                } catch (WrongDataFormatException e) {
+                    e.getMessage();
+                } catch (UnmarshalException e) {
+                    System.err.println("Pusty rekord");
+                }
+                if (i == iloscPetli - 1) {
+                    newPD = newKD;
+                    newKD = newPD.plusDays(ostatnieDni);
+                } else {
+                    newPD = newKD;
+                    newKD = newKD.plusDays(93);
+                }
+            }
+        } else {
+
+            try {
+                requestURL = generateHTTP(currencyCodeEnum, pD, kD, table, dataFormat);
+            } catch (WrongDataFormatException e) {
+                e.getMessage();
+            }
+
+            try {
+                exchangeRatesSeries = unmarshalExchangeRatesSeries(requestURL);
+            } catch (UnmarshalException e) {
+                System.err.println("Pusty rekord!");
+            }
+        }
+        if (exchangeRatesSeries != null)
+            printOperation(exchangeRatesSeries, scanner);
 
 
     }
 
-    private static ExchangeRatesSeries unmarshalExchangeRatesSeries(String requestURL) {
+    private static ExchangeRatesSeries unmarshalExchangeRatesSeries(String requestURL) throws UnmarshalException {
         ExchangeRatesSeries exchangeRatesSeries = null;
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(ExchangeRatesSeries.class);
             Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
             exchangeRatesSeries = (ExchangeRatesSeries) unmarshaller.unmarshal(new URL(requestURL));
-        } catch (UnmarshalException ue) {
-            System.err.println("Brak rekordów w tabeli");
         } catch (JAXBException | MalformedURLException e) {
             e.printStackTrace();
         }
@@ -173,11 +213,12 @@ public class Main {
         return table;
     }
 
-
-    private static String generateHTTP(CurrencyCode kodWaluty, LocalDate poczatkowyZakresDaty, LocalDate koncowyZakresDaty, String tabelaString, DataFormat dataFormat) {
+    private static String generateHTTP(CurrencyCode kodWaluty, LocalDate poczatkowyZakresDaty, LocalDate koncowyZakresDaty, String tabelaString, DataFormat dataFormat) throws WrongDataFormatException {
+        if (dataFormat == DataFormat.JSON) {
+            throw new WrongDataFormatException("Format daty nie obsługiwany");
+        }
         return "http://api.nbp.pl/api/exchangerates/rates/" + tabelaString + "/" + kodWaluty.toString() + "/" + poczatkowyZakresDaty.format(DATE_TIME_FORMATTER) + "/" + koncowyZakresDaty.format(DATE_TIME_FORMATTER) + "/?format=" + dataFormat.toString();
     }
-
 
     private static CurrencyCode loadCurrencyCodeFromUser(Scanner scanner) {
         CurrencyCode currencyCodeEnum = null;
